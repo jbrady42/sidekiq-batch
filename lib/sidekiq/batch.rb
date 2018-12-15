@@ -194,18 +194,25 @@ module Sidekiq
         end
         return if needed == 'true'
 
-        begin
-          parent_bid = !parent_bid || parent_bid.empty? ? nil : parent_bid    # Basically parent_bid.blank?
+        if callbacks.empty?
+          cleanup_redis(bid) if event == :success
+          return
+        end
+
+        queue ||= "default"
+        parent_bid = !parent_bid || parent_bid.empty? ? nil : parent_bid    # Basically parent_bid.blank?
+        callback_args = callbacks.reduce([]) do |memo, jcb|
+          cb = Sidekiq.load_json(jcb)
+          memo << [cb['callback'], event, cb['opts'], bid, parent_bid]
+        end
+
+        # Schedule callbacks
+        maybe_in_batch event, bid, callback_args do
           Sidekiq::Client.push_bulk(
             'class' => Sidekiq::Batch::Callback::Worker,
-            'args' => callbacks.reduce([]) do |memo, jcb|
-              cb = Sidekiq.load_json(jcb)
-              memo << [cb['callback'], event, cb['opts'], bid, parent_bid]
-            end,
-            'queue' => queue ||= 'default'
-          ) unless callbacks.empty?
-        ensure
-          cleanup_redis(bid) if event == :success
+            'args' => callback_args,
+            'queue' => queue
+          )
         end
       end
 
@@ -215,6 +222,24 @@ module Sidekiq
                 "BID-#{bid}-callbacks-complete",
                 "BID-#{bid}-callbacks-success",
                 "BID-#{bid}-failed")
+        end
+      end
+
+    private
+
+      # Run success callback in a sub batch
+      # Use callback to cleanup redis after all callbacks have run
+       def maybe_in_batch event, bid, callback_args
+        raise ArgumentError, "Requires a block" unless block_given?
+        succ_callback = Sidekiq::Batch::Callback::SuccessCallback
+        if event == :success && callback_args.none? {|a| a.first == succ_callback.to_s }
+          cb_batch = self.new
+          cb_batch.on(:success, succ_callback, bid: bid)
+          cb_batch.jobs do
+            yield
+          end
+        else
+          yield
         end
       end
     end

@@ -1,6 +1,16 @@
 module Sidekiq
   class Batch
     module Callback
+
+      class SuccessCallback
+        def on_success status, opts
+          bid = status.bid
+          Sidekiq.logger.debug {"SuccessCallback batch id: #{opts["bid"]}, callback batch id: #{bid}"}
+          Sidekiq::Batch.cleanup_redis bid
+          Sidekiq::Batch.cleanup_redis opts["bid"] if opts["bid"]
+        end
+      end
+
       class Worker
         include Sidekiq::Worker
 

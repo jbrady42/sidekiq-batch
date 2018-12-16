@@ -7,3 +7,5 @@ Sidekiq::Testing.server_middleware do |chain|
 end
 
 Sidekiq.redis { |r| r.flushdb }
+
+Sidekiq.logger.level = :debug

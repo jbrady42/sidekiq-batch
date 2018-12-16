@@ -2,20 +2,20 @@ require 'integration_helper'
 
 class Callbacks
   def worker1 status, opts
-    Sidekiq.logger.info "11111111111111111111111 #{status.data}"
+    Sidekiq.logger.info "Success 1 #{status.data}"
 
     overall = Sidekiq::Batch.new status.parent_bid
     overall.jobs do
       batch = Sidekiq::Batch.new
       batch.on(:success, "Callbacks#worker2")
       batch.jobs do
-        2.times { Worker2.perform_async }
+        1.times { Worker2.perform_async }
       end
     end
   end
 
   def worker2 status, opts
-    Sidekiq.logger.info "22222222222222222222222 #{status.data}"
+    Sidekiq.logger.info "Success 2 #{status.data}"
     overall = Sidekiq::Batch.new status.parent_bid
     overall.jobs do
       batch = Sidekiq::Batch.new
@@ -28,7 +28,7 @@ class Callbacks
   end
 
   def worker3 status, opts
-    Sidekiq.logger.info "333333333333333333333333 #{status.data}"
+    Sidekiq.logger.info "Success 3 #{status.data}"
   end
 
 end
@@ -48,8 +48,16 @@ class Worker2
     Sidekiq.logger.info "Work 2"
     if bid
       batch.jobs do
-        10.times { Worker3.perform_async }
+        1.times { Worker3.perform_async }
+
       end
+      newb = Sidekiq::Batch.new
+      newb.jobs do
+        1.times { Worker1.perform_async }
+      end
+      Sidekiq.logger.info Sidekiq::Batch::Status.new(newb.bid).data
+      Sidekiq.logger.info Sidekiq::Batch::Status.new(bid).data
+
     end
   end
 end
@@ -64,7 +72,7 @@ end
 
 class MyCallback
   def on_success(status, options)
-    Sidekiq.logger.info "Success $$$$$$$$$$$ #{options} #{status.data}"
+    Sidekiq.logger.info "S!!!!!!!!!!!!!! uccess Overall!! #{options} #{status.data}"
   end
   alias_method :multi, :on_success
 
@@ -80,6 +88,7 @@ end
 
 overall = Sidekiq::Batch.new
 overall.on(:success, MyCallback, to: 'success@gmail.com')
+overall.on(:complete, MyCallback, to: 'success@gmail.com')
 overall.jobs do
   batch1 = Sidekiq::Batch.new
   batch1.on(:success, "Callbacks#worker1")
@@ -87,6 +96,8 @@ overall.jobs do
     Worker1.perform_async
   end
 end
+
+puts "Overall bid #{overall.bid}"
 
 dump_redis_keys
 

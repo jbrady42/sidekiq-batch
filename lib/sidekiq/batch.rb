@@ -33,6 +33,11 @@ module Sidekiq
       persist_bid_attr('callback_queue', callback_queue)
     end
 
+    def callback_batch=(callback_batch)
+      @callback_batch = callback_batch
+      persist_bid_attr('callback_batch', callback_batch)
+    end
+
     def on(event, callback, options = {})
       return unless %w(success complete).include?(event.to_s)
       callback_key = "#{@bidkey}-callbacks-#{event}"
@@ -174,7 +179,7 @@ module Sidekiq
           end
         end
 
-        Sidekiq.logger.info "done: #{jid} in batch #{bid}"
+        Sidekiq.logger.debug "done: #{jid} in batch #{bid} childre: #{children} complete #{complete} success #{success} pending #{pending} failed #{failed}"
 
         enqueue_callbacks(:complete, bid) if pending.to_i == failed.to_i && children == complete
         enqueue_callbacks(:success, bid) if pending.to_i.zero? && children == success
@@ -183,21 +188,19 @@ module Sidekiq
       def enqueue_callbacks(event, bid)
         batch_key = "BID-#{bid}"
         callback_key = "#{batch_key}-callbacks-#{event}"
-        needed, _, callbacks, queue, parent_bid = Sidekiq.redis do |r|
+        needed, _, callbacks, queue, parent_bid, callback_batch = Sidekiq.redis do |r|
           r.multi do
             r.hget(batch_key, event)
             r.hset(batch_key, event, true)
             r.smembers(callback_key)
             r.hget(batch_key, "callback_queue")
             r.hget(batch_key, "parent_bid")
+            r.hget(batch_key, "callback_batch")
           end
         end
-        return if needed == 'true'
+        Sidekiq.logger.debug "Enqueue bid #{batch_key} event #{event} args #{callback_key} needed #{needed}"
 
-        if callbacks.empty?
-          cleanup_redis(bid) if event == :success
-          return
-        end
+        return if needed == 'true'
 
         queue ||= "default"
         parent_bid = !parent_bid || parent_bid.empty? ? nil : parent_bid    # Basically parent_bid.blank?
@@ -206,41 +209,56 @@ module Sidekiq
           memo << [cb['callback'], event, cb['opts'], bid, parent_bid]
         end
 
-        # Schedule callbacks
-        maybe_in_batch event, bid, callback_args do
-          Sidekiq::Client.push_bulk(
-            'class' => Sidekiq::Batch::Callback::Worker,
-            'args' => callback_args,
-            'queue' => queue
-          )
+        Sidekiq.logger.debug "Bid #{bid} event #{event} args #{callback_args.inspect}"
+
+        if callback_batch
+          push_callbacks callback_args, queue
+          return
+        end
+
+        opts = {"bid" => bid, "event" => event}
+
+        if callback_args.empty?
+          # If no callbacks
+          # Finalize now
+          finalizer = Sidekiq::Batch::Callback::Finalize.new
+          status = Status.new bid
+          finalizer.dispatch(status, opts)
+        else
+          # Otherwise finalize in sub batch success callback
+          cb_batch = self.new
+          cb_batch.callback_batch = true
+          Sidekiq.logger.debug "Adding callback batch #{cb_batch.bid}"
+          cb_batch.on(:success, "Sidekiq::Batch::Callback::Finalize#dispatch", opts)
+          cb_batch.jobs do
+            push_callbacks callback_args, queue
+          end
         end
       end
 
       def cleanup_redis(bid)
         Sidekiq.redis do |r|
-          r.del("BID-#{bid}",
-                "BID-#{bid}-callbacks-complete",
-                "BID-#{bid}-callbacks-success",
-                "BID-#{bid}-failed")
+          r.del(
+            "BID-#{bid}",
+            "BID-#{bid}-callbacks-complete",
+            "BID-#{bid}-callbacks-success",
+            "BID-#{bid}-failed",
+
+            "BID-#{bid}-success",
+            "BID-#{bid}-complete",
+            "BID-#{bid}-jids",
+          )
         end
       end
 
     private
 
-      # Run success callback in a sub batch
-      # Use callback to cleanup redis after all callbacks have run
-       def maybe_in_batch event, bid, callback_args
-        raise ArgumentError, "Requires a block" unless block_given?
-        succ_callback = Sidekiq::Batch::Callback::SuccessCallback
-        if event == :success && callback_args.none? {|a| a.first == succ_callback.to_s }
-          cb_batch = self.new
-          cb_batch.on(:success, succ_callback, bid: bid)
-          cb_batch.jobs do
-            yield
-          end
-        else
-          yield
-        end
+      def push_callbacks args, queue
+        Sidekiq::Client.push_bulk(
+          'class' => Sidekiq::Batch::Callback::Worker,
+          'args' => args,
+          'queue' => queue
+        ) unless args.empty?
       end
     end
   end

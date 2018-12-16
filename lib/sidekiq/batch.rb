@@ -212,14 +212,13 @@ module Sidekiq
         Sidekiq.logger.debug "Bid #{bid} event #{event} args #{callback_args.inspect}"
 
         if callback_batch
-          push_callbacks callback_args, queue
+          push_callbacks callback_args, queue unless callback_args.empty?
           return
         end
 
         opts = {"bid" => bid, "event" => event}
 
         if callback_args.empty?
-          # If no callbacks
           # Finalize now
           finalizer = Sidekiq::Batch::Callback::Finalize.new
           status = Status.new bid

@@ -13,7 +13,6 @@ module Sidekiq
           Sidekiq.logger.debug {"Finalize #{event} batch id: #{opts["bid"]}, callback batch id: #{callback_bid} callback_batch #{callback_batch}"}
 
           batch_status = Status.new bid
-          # Sidekiq.logger.debug "Status #{batch_status.data}"
           send(event, bid, batch_status, batch_status.parent_bid)
 
           if callback_batch
@@ -30,7 +29,7 @@ module Sidekiq
         end
 
         def success(bid, status, parent_bid)
-          Sidekiq.logger.debug "Update parent success #{parent_bid}"
+          Sidekiq.logger.debug {"Update parent success #{parent_bid}"}
           if (parent_bid)
             _, _, success, pending, children = Sidekiq.redis do |r|
               r.multi do
@@ -42,7 +41,7 @@ module Sidekiq
               end
             end
 
-            Sidekiq.logger.debug "Bid #{bid} parent #{parent_bid} pending #{pending} success #{success} children #{children}"
+            Sidekiq.logger.debug {"Bid #{bid} parent #{parent_bid} pending #{pending} success #{success} children #{children}"}
 
 
             Batch.enqueue_callbacks(:success, parent_bid) if pending.to_i.zero? && children == success
@@ -50,7 +49,7 @@ module Sidekiq
         end
 
         def complete(bid, status, parent_bid)
-          Sidekiq.logger.debug "Update parent complete #{parent_bid}"
+          Sidekiq.logger.debug {"Update parent complete #{parent_bid}"}
 
           if (parent_bid)
             _, complete, pending, children, failure = Sidekiq.redis do |r|

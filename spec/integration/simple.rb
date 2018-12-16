@@ -7,6 +7,7 @@ class Worker1
     Sidekiq.logger.info "Work1"
     batch = Sidekiq::Batch.new
     batch.on(:success, Worker2)
+    batch.on(:complete, Worker2)
     batch.jobs do
       Worker2.perform_async
     end
@@ -33,6 +34,10 @@ class Worker2
         Worker3.perform_async
       end
     end
+  end
+
+  def on_complete status, opts
+    Sidekiq.logger.info "Worker 2 COMPLETE"
   end
 end
 
@@ -66,4 +71,8 @@ end
 
 puts "Overall bid #{batch.bid}"
 
+dump_redis_keys
+
 Sidekiq::Worker.drain_all
+
+dump_redis_keys

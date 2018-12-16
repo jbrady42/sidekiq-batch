@@ -38,6 +38,11 @@ class Worker1
 
   def perform
     Sidekiq.logger.info "Work1"
+    batch = Sidekiq::Batch.new
+    batch.on(:success, "Callbacks#worker2")
+    batch.jobs do
+      1.times { Worker3.perform_async }
+    end
   end
 end
 
@@ -72,18 +77,13 @@ end
 
 class MyCallback
   def on_success(status, options)
-    Sidekiq.logger.info "S!!!!!!!!!!!!!! uccess Overall!! #{options} #{status.data}"
+    Sidekiq.logger.info "!!!!!!!! Success Overall !!!!!!!! #{options} #{status.data}"
   end
   alias_method :multi, :on_success
 
   def on_complete(status, options)
     Sidekiq.logger.info "Complete #{options} #{status.data}"
   end
-end
-
-def dump_redis_keys
-  keys = Sidekiq.redis { |r| r.keys('BID-*') }
-  puts keys.inspect
 end
 
 overall = Sidekiq::Batch.new

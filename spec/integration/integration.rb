@@ -1,10 +1,14 @@
 require 'integration_helper'
 
+# Simple test of adding jobs to the current batch
+# Batches
+# - Overall (TestWoker) + Another worker
+
 class AnotherWorker
   include Sidekiq::Worker
 
   def perform
-    Sidekiq.logger.info "Another"
+    Sidekiq.logger.info "Another Worker"
   end
 end
 
@@ -12,7 +16,7 @@ class TestWorker
   include Sidekiq::Worker
 
   def perform
-    Sidekiq.logger.info "Test Work"
+    Sidekiq.logger.info "Test Worker"
     if bid
       batch.jobs do
         AnotherWorker.perform_async
@@ -41,15 +45,12 @@ batch.on(:complete, MyCallback, to: 'complete@gmail.com')
 
 batch.jobs do
   10.times do
-    Sidekiq.logger.info "Test"
     TestWorker.perform_async
   end
 end
 puts Sidekiq::Batch::Status.new(batch.bid).data
 
 dump_redis_keys
-
-puts Sidekiq::Worker.jobs
 
 Sidekiq::Worker.drain_all
 

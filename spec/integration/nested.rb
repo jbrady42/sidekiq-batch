@@ -1,7 +1,8 @@
 require 'integration_helper'
 
-# This tests deep nesting of batches
-# Overall Batch (worker 1)
+# Tests deep nesting of batches
+# Batches:
+# - Overall (Worker 1)
 #  - Worker 2
 #   - Worker 3
 #    - Worker 4
@@ -32,7 +33,7 @@ class Worker2
   end
 
   def on_success status, opts
-    Sidekiq.logger.info "Worker 2 SUCCESS"
+    Sidekiq.logger.info "Worker 2 Success"
   end
 end
 
@@ -49,7 +50,7 @@ class Worker3
   end
 
   def on_success status, opts
-    Sidekiq.logger.info "Worker 3 SUCCESS"
+    Sidekiq.logger.info "Worker 3 Success"
   end
 end
 
@@ -61,7 +62,7 @@ class Worker4
   end
 
   def on_success status, opts
-    Sidekiq.logger.info "Worker 4 SUCCESS"
+    Sidekiq.logger.info "Worker 4 Success"
   end
 end
 

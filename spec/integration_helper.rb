@@ -8,7 +8,7 @@ end
 
 Sidekiq.redis { |r| r.flushdb }
 
-Sidekiq.logger.level = :debug
+# Sidekiq.logger.level = :debug
 
 def dump_redis_keys
   keys = Sidekiq.redis { |r| r.keys('BID-*') }

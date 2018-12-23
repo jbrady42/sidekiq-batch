@@ -2,8 +2,8 @@ require 'integration_helper'
 
 # Complex workflow with sequential and nested
 # Also test sub batches without callbacks
-# Batches
-# - overall
+# Batches:
+# - Overall
 #  - Worker1
 #   - Worker3
 #  - Worker2 + Worker3

@@ -1,7 +1,7 @@
 require 'integration_helper'
 
 # Simple test of adding jobs to the current batch
-# Batches
+# Batches:
 # - Overall (TestWoker) + Another worker
 
 class AnotherWorker

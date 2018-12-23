@@ -37,7 +37,7 @@ module Sidekiq
         end
 
         def success(bid, status, parent_bid)
-          Sidekiq.logger.debug {"Finalize parent success #{parent_bid}"}
+          Sidekiq.logger.debug {"Finalize parent success bid: #{parent_bid}"}
           if (parent_bid)
             _, _, success, pending, children = Sidekiq.redis do |r|
               r.multi do
@@ -54,7 +54,7 @@ module Sidekiq
         end
 
         def complete(bid, status, parent_bid)
-          Sidekiq.logger.debug {"Finalize parent complete #{parent_bid}"}
+          Sidekiq.logger.debug {"Finalize parent complete bid: #{parent_bid}"}
 
           if (parent_bid)
             _, complete, pending, children, failure = Sidekiq.redis do |r|

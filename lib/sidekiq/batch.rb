@@ -179,7 +179,7 @@ module Sidekiq
           end
         end
 
-        Sidekiq.logger.debug {"done: #{jid} in batch #{bid} childre: #{children} complete #{complete} success #{success} pending #{pending} failed #{failed}"}
+        Sidekiq.logger.debug {"Job success: #{jid} in batch #{bid} children: #{children} complete #{complete} success #{success} pending #{pending} failed #{failed}"}
 
         enqueue_callbacks(:complete, bid) if pending.to_i == failed.to_i && children == complete
         enqueue_callbacks(:success, bid) if pending.to_i.zero? && children == success
@@ -198,7 +198,7 @@ module Sidekiq
             r.hget(batch_key, "callback_batch")
           end
         end
-        Sidekiq.logger.debug {"Enqueue bid #{batch_key} event #{event} args #{callback_key} needed #{needed}"}
+        Sidekiq.logger.debug {"Enqueue callback info: bid: #{bid} event: #{event} needed: #{needed}"} if needed == 'true'
 
         return if needed == 'true'
 
@@ -209,7 +209,7 @@ module Sidekiq
           memo << [cb['callback'], event, cb['opts'], bid, parent_bid]
         end
 
-        Sidekiq.logger.debug {"Bid #{bid} event #{event} args #{callback_args.inspect}"}
+        Sidekiq.logger.debug {"Enqueue callback bid: #{bid} event: #{event} args: #{callback_args.inspect}"}
 
         if callback_batch
           push_callbacks callback_args, queue unless callback_args.empty?
@@ -227,7 +227,7 @@ module Sidekiq
           # Otherwise finalize in sub batch success callback
           cb_batch = self.new
           cb_batch.callback_batch = true
-          Sidekiq.logger.debug {"Adding callback batch #{cb_batch.bid}"}
+          Sidekiq.logger.debug {"Adding callback batch: #{cb_batch.bid} for batch: #{bid}"}
           cb_batch.on(:success, "Sidekiq::Batch::Callback::Finalize#dispatch", opts)
           cb_batch.jobs do
             push_callbacks callback_args, queue

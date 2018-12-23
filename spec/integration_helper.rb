@@ -10,7 +10,11 @@ Sidekiq.redis { |r| r.flushdb }
 
 # Sidekiq.logger.level = :debug
 
+
+def redis_keys
+  Sidekiq.redis { |r| r.keys('BID-*') }
+end
+
 def dump_redis_keys
-  keys = Sidekiq.redis { |r| r.keys('BID-*') }
-  puts keys.inspect
+  puts redis_keys.inspect
 end

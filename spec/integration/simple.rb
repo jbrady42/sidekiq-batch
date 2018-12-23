@@ -51,4 +51,8 @@ dump_redis_keys
 
 Sidekiq::Worker.drain_all
 
-dump_redis_keys
+describe("sidekiq batch") do
+  it "cleans redis keys" do
+    expect(redis_keys).to eq([])
+  end
+end

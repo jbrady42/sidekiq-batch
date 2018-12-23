@@ -1,5 +1,16 @@
 require 'integration_helper'
 
+# Complex workflow with sequential and nested
+# Also test sub batches without callbacks
+# Batches
+# - overall
+#  - Worker1
+#   - Worker3
+#  - Worker2 + Worker3
+#   - Worker1
+#    - Worker3
+#  - Worker3
+
 class Callbacks
   def worker1 status, opts
     Sidekiq.logger.info "Success 1 #{status.data}"
@@ -9,7 +20,7 @@ class Callbacks
       batch = Sidekiq::Batch.new
       batch.on(:success, "Callbacks#worker2")
       batch.jobs do
-        1.times { Worker2.perform_async }
+        Worker2.perform_async
       end
     end
   end
@@ -30,18 +41,16 @@ class Callbacks
   def worker3 status, opts
     Sidekiq.logger.info "Success 3 #{status.data}"
   end
-
 end
 
 class Worker1
   include Sidekiq::Worker
 
   def perform
-    Sidekiq.logger.info "Work1"
+    Sidekiq.logger.info "Work 1"
     batch = Sidekiq::Batch.new
-    batch.on(:success, "Callbacks#worker2")
     batch.jobs do
-      1.times { Worker3.perform_async }
+      Worker3.perform_async
     end
   end
 end
@@ -53,16 +62,12 @@ class Worker2
     Sidekiq.logger.info "Work 2"
     if bid
       batch.jobs do
-        1.times { Worker3.perform_async }
-
+        Worker3.perform_async
       end
       newb = Sidekiq::Batch.new
       newb.jobs do
-        1.times { Worker1.perform_async }
+        Worker1.perform_async
       end
-      Sidekiq.logger.info Sidekiq::Batch::Status.new(newb.bid).data
-      Sidekiq.logger.info Sidekiq::Batch::Status.new(bid).data
-
     end
   end
 end
@@ -71,18 +76,18 @@ class Worker3
   include Sidekiq::Worker
 
   def perform
-    Sidekiq.logger.info "Work3"
+    Sidekiq.logger.info "Work 3"
   end
 end
 
 class MyCallback
   def on_success(status, options)
-    Sidekiq.logger.info "!!!!!!!! Success Overall !!!!!!!! #{options} #{status.data}"
+    Sidekiq.logger.info "Success Overall #{options} #{status.data}"
   end
   alias_method :multi, :on_success
 
   def on_complete(status, options)
-    Sidekiq.logger.info "Complete #{options} #{status.data}"
+    Sidekiq.logger.info "Complete Overall #{options} #{status.data}"
   end
 end
 

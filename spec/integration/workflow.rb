@@ -9,7 +9,8 @@ require 'integration_helper'
 #  - Worker2 + Worker3
 #   - Worker1
 #    - Worker3
-#  - Worker3
+#  - Worker4
+#  - Worker5
 
 class Callbacks
   def worker1 status, opts
@@ -30,16 +31,28 @@ class Callbacks
     overall = Sidekiq::Batch.new status.parent_bid
     overall.jobs do
       batch = Sidekiq::Batch.new
-      batch.on(:success, "Callbacks#worker3")
+      batch.on(:success, "Callbacks#worker4")
       batch.jobs do
-        Worker3.perform_async
+        Worker4.perform_async
       end
     end
 
   end
 
-  def worker3 status, opts
-    Sidekiq.logger.info "Success 3 #{status.data}"
+  def worker4 status, opts
+    Sidekiq.logger.info "Success 4 #{status.data}"
+    overall = Sidekiq::Batch.new status.parent_bid
+    overall.jobs do
+      batch = Sidekiq::Batch.new
+      batch.on(:success, "Callbacks#worker5")
+      batch.jobs do
+        Worker5.perform_async
+      end
+    end
+  end
+
+  def worker5 status, opts
+    Sidekiq.logger.info "Success 5 #{status.data}"
   end
 end
 
@@ -74,9 +87,22 @@ end
 
 class Worker3
   include Sidekiq::Worker
-
   def perform
     Sidekiq.logger.info "Work 3"
+  end
+end
+
+class Worker4
+  include Sidekiq::Worker
+  def perform
+    Sidekiq.logger.info "Work 4"
+  end
+end
+
+class Worker5
+  include Sidekiq::Worker
+  def perform
+    Sidekiq.logger.info "Work 5"
   end
 end
 

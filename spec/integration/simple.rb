@@ -1,6 +1,10 @@
 require 'integration_helper'
 
 # Simple nested batch without callbacks
+# Batches:
+# - Overall (Worker1)
+#  - Worker2
+
 class Worker1
   include Sidekiq::Worker
 
@@ -25,15 +29,6 @@ class Worker2
   end
 end
 
-# class Worker3
-#   include Sidekiq::Worker
-#
-#   def perform
-#     Sidekiq.logger.info "Work3"
-#   end
-# end
-
-
 class SomeClass
   def on_complete(status, options)
     Sidekiq.logger.info "Overall Complete #{options} #{status.data}"
@@ -42,10 +37,10 @@ class SomeClass
     Sidekiq.logger.info "Overall Success #{options} #{status.data}"
   end
 end
+
 batch = Sidekiq::Batch.new
-batch.on(:success, SomeClass, 'uid' => 3)
-# You can also use Class#method notation
-batch.on(:complete, SomeClass, 'uid' => 3)
+batch.on(:success, SomeClass)
+batch.on(:complete, SomeClass)
 batch.jobs do
   Worker1.perform_async
 end
